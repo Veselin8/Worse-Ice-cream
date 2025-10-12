@@ -6,9 +6,7 @@ We decided to replicate a beloved video game _Bad Ice-Cream_ in our own style. W
 
 Sources:
 1) GitHub
-
-  https://docs.github.com/en/get-started/start-your-journey/hello-world
-  https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax
+  https://docs.github.com/en/get-started
 
 3) Timer
   
