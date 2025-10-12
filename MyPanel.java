@@ -1,6 +1,8 @@
-import javax.swing.*;
-import java.awt.*;
-import java.awt.event.*;
+import javax.swing.*; // JPanel, Timer
+import java.awt.*; // Graphics, Color, Dimension, Font, ImageObserver, Point
+import java.awt.event.*; // ActionListener, KeyListener, KeyEvent
+import java.util.List; // List interface
+import java.util.ArrayList; // ArrayList implementation
 
 public class MyPanel extends JPanel implements ActionListener, KeyListener {
 
@@ -10,12 +12,17 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
     private static final int PANEL_SIZE = TILE_SIZE * GRID_WIDTH;
 
     private Timer timer;
-    private Player player; // Assuming Player class exists and has setDirection, move, keepInBounds, draw methods
-    private boolean upPressed, downPressed, leftPressed, rightPressed;
-    
-    // Add variables to track the player's current direction
-    private int dx = 0; 
-    private int dy = 0; 
+    private Player player;
+    private List<Block> blocks;
+    private CoinManager coinManager; // <-- NEW
+
+    private boolean upPressed;
+    private boolean downPressed;
+    private boolean leftPressed;
+    private boolean rightPressed;
+
+    private int dx = 0;
+    private int dy = 0;
 
     public MyPanel() {
         setPreferredSize(new Dimension(PANEL_SIZE, PANEL_SIZE));
@@ -23,12 +30,32 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         setFocusable(true);
         addKeyListener(this);
 
-        // Player starting in the middle, direction set to stationary (0, 0)
-        player = new Player(GRID_WIDTH / 2, GRID_HEIGHT / 2); 
-        player.setDirection(0, 0); 
-        
-        timer = new Timer(150, this); // update every 150 ms
+        BlockManager.clear();
+        blocks = new ArrayList<>();
+        coinManager = new CoinManager(); // initialize coin manager
+
+        player = new Player(GRID_WIDTH / 2, GRID_HEIGHT / 2);
+        player.setDirection(0, 0);
+
+        // Add blocks
+        addBlock(5, 5);
+        addBlock(5, 6);
+        addBlock(5, 7);
+        addBlock(10, 10);
+        addBlock(11, 10);
+
+        // Add coins
+        coinManager.addCoin(2, 2);
+        coinManager.addCoin(5, 4);
+        coinManager.addCoin(11, 10);
+
+        timer = new Timer(150, this);
         timer.start();
+    }
+
+    private void addBlock(int x, int y) {
+        Block block = new Block(x, y);
+        blocks.add(block);
     }
 
     @Override
@@ -38,44 +65,30 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
     }
 
     private void update() {
-        // 1. Determine the desired direction based on pressed keys
-        // The movement logic is now in keyPressed, but we need to re-evaluate it 
-        // if multiple keys are pressed/released quickly. A simpler approach for 
-        // single-step movement is to just move if any key is currently pressed.
-        
-        // This logic is simplified for single-step movement:
-        // Set direction only if a key is pressed (flags are true)
+        // Determine movement direction
         if (upPressed) {
-            dx = 0; dy = -1;
+            dx = 0;
+            dy = -1;
         } else if (downPressed) {
-            dx = 0; dy = 1;
+            dx = 0;
+            dy = 1;
         } else if (leftPressed) {
-            dx = -1; dy = 0;
+            dx = -1;
+            dy = 0;
         } else if (rightPressed) {
-            dx = 1; dy = 0;
+            dx = 1;
+            dy = 0;
         } else {
-            // No key is currently pressed for movement
-            dx = 0; dy = 0; 
+            dx = 0;
+            dy = 0;
         }
 
-        // 2. Only move if a movement key is pressed (dx or dy is non-zero)
         if (dx != 0 || dy != 0) {
-            player.setDirection(dx, dy); // Set the calculated direction
-            player.move();              // Move one tile
-            player.keepInBounds(GRID_WIDTH, GRID_HEIGHT);
-            
-            // OPTIONAL: Reset flags after movement if you want single-tile movement 
-            // per key press, but a better approach is using keyReleased to stop.
-            // For continuous movement while pressed, keep the flags set.
+            player.setDirection(dx, dy);
+            player.move(GRID_WIDTH, GRID_HEIGHT); // already checks bounds & blocks
         }
-    }
 
-    @Override
-    protected void paintComponent(Graphics g) {
-        super.paintComponent(g);
-        drawGrid(g);
-        // Assuming TILE_SIZE is used by Player.draw for positioning
-        player.draw(g, TILE_SIZE); 
+        coinManager.update(player); // <-- check for collection
     }
 
     private void drawGrid(Graphics g) {
@@ -89,37 +102,50 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
     }
 
     @Override
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+        drawGrid(g);
+
+        // Draw blocks first
+        for (Block block : blocks) {
+            block.draw(g, this, TILE_SIZE);
+        }
+
+        // Draw coins on top of blocks
+        coinManager.draw(g, this, TILE_SIZE);
+
+        // Draw player
+        player.draw(g, this, TILE_SIZE);
+
+        // Draw coin counter
+        g.setColor(Color.WHITE);
+        g.setFont(new Font("Arial", Font.BOLD, 18));
+        g.drawString("Coins: " + coinManager.getCollected(), 10, 20);
+    }
+
+    @Override
     public void keyPressed(KeyEvent e) {
         int code = e.getKeyCode();
-        
-        // When a key is pressed, set its corresponding flag to true.
-        // It's usually better to NOT unset the other flags here, 
-        // as you might press two keys simultaneously (though for simple 4-way, it's okay).
         switch (code) {
-            case KeyEvent.VK_W, KeyEvent.VK_UP -> upPressed = true; 
-            case KeyEvent.VK_S, KeyEvent.VK_DOWN -> downPressed = true; 
-            case KeyEvent.VK_A, KeyEvent.VK_LEFT -> leftPressed = true; 
-            case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> rightPressed = true; 
+            case KeyEvent.VK_W, KeyEvent.VK_UP -> upPressed = true;
+            case KeyEvent.VK_S, KeyEvent.VK_DOWN -> downPressed = true;
+            case KeyEvent.VK_A, KeyEvent.VK_LEFT -> leftPressed = true;
+            case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> rightPressed = true;
         }
     }
 
     @Override
     public void keyReleased(KeyEvent e) {
         int code = e.getKeyCode();
-        
-        // When a key is released, set its corresponding flag to false.
         switch (code) {
-            case KeyEvent.VK_W, KeyEvent.VK_UP -> upPressed = false; 
-            case KeyEvent.VK_S, KeyEvent.VK_DOWN -> downPressed = false; 
-            case KeyEvent.VK_A, KeyEvent.VK_LEFT -> leftPressed = false; 
-            case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> rightPressed = false; 
+            case KeyEvent.VK_W, KeyEvent.VK_UP -> upPressed = false;
+            case KeyEvent.VK_S, KeyEvent.VK_DOWN -> downPressed = false;
+            case KeyEvent.VK_A, KeyEvent.VK_LEFT -> leftPressed = false;
+            case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> rightPressed = false;
         }
-        
-        // The 'update' method (called by the Timer) will now see that 
-        // all directional flags are false and set the direction to (0, 0), 
-        // stopping the player on the next timer tick.
     }
 
     @Override
-    public void keyTyped(KeyEvent e) { }
+    public void keyTyped(KeyEvent e) {
+    }
 }
