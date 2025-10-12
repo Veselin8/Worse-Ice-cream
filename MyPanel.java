@@ -1,8 +1,8 @@
-import javax.swing.*; // JPanel, Timer
-import java.awt.*; // Graphics, Color, Dimension, Font, ImageObserver, Point
-import java.awt.event.*; // ActionListener, KeyListener, KeyEvent
-import java.util.List; // List interface
-import java.util.ArrayList; // ArrayList implementation
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.util.List;
+import java.util.ArrayList;
 
 public class MyPanel extends JPanel implements ActionListener, KeyListener {
 
@@ -13,16 +13,13 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
 
     private Timer timer;
     private Player player;
+    private Monster1 monster;
     private List<Block> blocks;
-    private CoinManager coinManager; // <-- NEW
+    private CoinManager coinManager;
+    private CollisionManager collisionManager;
 
-    private boolean upPressed;
-    private boolean downPressed;
-    private boolean leftPressed;
-    private boolean rightPressed;
-
-    private int dx = 0;
-    private int dy = 0;
+    private boolean upPressed, downPressed, leftPressed, rightPressed;
+    private boolean gameOver = false;
 
     public MyPanel() {
         setPreferredSize(new Dimension(PANEL_SIZE, PANEL_SIZE));
@@ -30,14 +27,23 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         setFocusable(true);
         addKeyListener(this);
 
-        BlockManager.clear();
-        blocks = new ArrayList<>();
-        coinManager = new CoinManager(); // initialize coin manager
+        initializeGame();
 
+        timer = new Timer(150, this);
+        timer.start();
+    }
+
+    private void initializeGame() {
+        blocks = new ArrayList<>();
+        coinManager = new CoinManager();
+
+        // Assuming Player, Monster1, Block, CoinManager, and CollisionManager classes exist
         player = new Player(GRID_WIDTH / 2, GRID_HEIGHT / 2);
         player.setDirection(0, 0);
 
-        // Add blocks
+        monster = new Monster1(8, 0);
+
+        // Add some example blocks
         addBlock(5, 5);
         addBlock(5, 6);
         addBlock(5, 7);
@@ -49,13 +55,21 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         coinManager.addCoin(5, 4);
         coinManager.addCoin(11, 10);
 
-        timer = new Timer(150, this);
+        collisionManager = new CollisionManager(player, monster, blocks, coinManager);
+        gameOver = false;
+        upPressed = downPressed = leftPressed = rightPressed = false;
+    }
+
+    public void restartGame() {
+        timer.stop();
+        initializeGame();
+        requestFocusInWindow();
         timer.start();
+        repaint();
     }
 
     private void addBlock(int x, int y) {
-        Block block = new Block(x, y);
-        blocks.add(block);
+        blocks.add(new Block(x, y));
     }
 
     @Override
@@ -65,30 +79,56 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
     }
 
     private void update() {
-        // Determine movement direction
+        if (gameOver)
+            return;
+
+        updatePlayerDirection();
+
+        // Move player
+        if (player.getDx() != 0 || player.getDy() != 0) {
+            player.move(GRID_WIDTH, GRID_HEIGHT);
+        }
+
+        // Move monster
+        monster.move(GRID_WIDTH, GRID_HEIGHT);
+
+        // Handle collisions via the manager
+        if (collisionManager.handleCollisions()) {
+            gameOver = true;
+            timer.stop();
+            // FIX: Force a repaint of the final collision state before the modal dialog blocks the thread.
+            repaint(); 
+            showGameOverDialog();
+        }
+    }
+
+    private void updatePlayerDirection() {
+        int dx = 0, dy = 0;
+        // Prioritize vertical over horizontal if both are pressed (or based on press order)
         if (upPressed) {
-            dx = 0;
             dy = -1;
         } else if (downPressed) {
-            dx = 0;
             dy = 1;
-        } else if (leftPressed) {
-            dx = -1;
-            dy = 0;
-        } else if (rightPressed) {
-            dx = 1;
-            dy = 0;
-        } else {
-            dx = 0;
-            dy = 0;
         }
 
-        if (dx != 0 || dy != 0) {
-            player.setDirection(dx, dy);
-            player.move(GRID_WIDTH, GRID_HEIGHT); // already checks bounds & blocks
+        // Prioritize horizontal if no vertical movement is selected, or allow for diagonal
+        // Based on the original structure, it seems like only one direction (dx or dy) should be non-zero at a time
+        if (dy == 0) {
+            if (leftPressed) {
+                dx = -1;
+            } else if (rightPressed) {
+                dx = 1;
+            }
         }
+        player.setDirection(dx, dy);
+    }
 
-        coinManager.update(player); // <-- check for collection
+    private void showGameOverDialog() {
+        JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
+        if (parentFrame != null) {
+            // FIX: Ensure this line is NOT commented out to show the restart menu.
+            GameOverMenu.show(parentFrame);
+        }
     }
 
     private void drawGrid(Graphics g) {
@@ -106,18 +146,13 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         super.paintComponent(g);
         drawGrid(g);
 
-        // Draw blocks first
-        for (Block block : blocks) {
+        // Assuming Block, CoinManager, Monster1, and Player have a draw method
+        for (Block block : blocks)
             block.draw(g, this, TILE_SIZE);
-        }
-
-        // Draw coins on top of blocks
         coinManager.draw(g, this, TILE_SIZE);
-
-        // Draw player
+        monster.draw(g, this, TILE_SIZE);
         player.draw(g, this, TILE_SIZE);
 
-        // Draw coin counter
         g.setColor(Color.WHITE);
         g.setFont(new Font("Arial", Font.BOLD, 18));
         g.drawString("Coins: " + coinManager.getCollected(), 10, 20);
@@ -125,27 +160,58 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
 
     @Override
     public void keyPressed(KeyEvent e) {
+        if (gameOver)
+            return;
+
         int code = e.getKeyCode();
         switch (code) {
-            case KeyEvent.VK_W, KeyEvent.VK_UP -> upPressed = true;
-            case KeyEvent.VK_S, KeyEvent.VK_DOWN -> downPressed = true;
-            case KeyEvent.VK_A, KeyEvent.VK_LEFT -> leftPressed = true;
-            case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> rightPressed = true;
+            case KeyEvent.VK_W:
+            case KeyEvent.VK_UP:
+                upPressed = true;
+                break;
+            case KeyEvent.VK_S:
+            case KeyEvent.VK_DOWN:
+                downPressed = true;
+                break;
+            case KeyEvent.VK_A:
+            case KeyEvent.VK_LEFT:
+                leftPressed = true;
+                break;
+            case KeyEvent.VK_D:
+            case KeyEvent.VK_RIGHT:
+                rightPressed = true;
+                break;
         }
     }
 
     @Override
     public void keyReleased(KeyEvent e) {
+        if (gameOver)
+            return;
+
         int code = e.getKeyCode();
         switch (code) {
-            case KeyEvent.VK_W, KeyEvent.VK_UP -> upPressed = false;
-            case KeyEvent.VK_S, KeyEvent.VK_DOWN -> downPressed = false;
-            case KeyEvent.VK_A, KeyEvent.VK_LEFT -> leftPressed = false;
-            case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> rightPressed = false;
+            case KeyEvent.VK_W:
+            case KeyEvent.VK_UP:
+                upPressed = false;
+                break;
+            case KeyEvent.VK_S:
+            case KeyEvent.VK_DOWN:
+                downPressed = false;
+                break;
+            case KeyEvent.VK_A:
+            case KeyEvent.VK_LEFT:
+                leftPressed = false;
+                break;
+            case KeyEvent.VK_D:
+            case KeyEvent.VK_RIGHT:
+                rightPressed = false;
+                break;
         }
     }
 
     @Override
     public void keyTyped(KeyEvent e) {
+        // Not used
     }
 }

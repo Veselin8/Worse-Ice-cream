@@ -1,8 +1,12 @@
+// Main.java
+
+import javax.swing.SwingUtilities;
+import javax.swing.JFrame;
+
 public class Main {
     public static void main(String[] args) {
-        javax.swing.SwingUtilities.invokeLater(() -> {
-            new MyFrame();
+        SwingUtilities.invokeLater(() -> {
+            new MyFrame(); // Assumes MyFrame is in its own file
         });
     }
 }
-

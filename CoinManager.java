@@ -39,4 +39,13 @@ public class CoinManager {
     public int getCollected() {
         return collected;
     }
+
+    public void reset() {
+        this.collected = 0; // Reset the counter
+        // If you remove coins from a list when they are collected,
+        // you will need to re-add them here.
+        // For example, if you have a separate list for 'activeCoins':
+        // activeCoins.clear();
+        // activeCoins.addAll(allCoinsFromStart);
+    }
 }
