@@ -7,5 +7,5 @@ We decided to replicate a beloved video game _Bad Ice-Cream_ in our own style. W
 Sources:
 1) [GitHub](https://docs.github.com/en/get-started)
 
-3) Timer
+3) [Timer](https://docs.oracle.com/javase/8/docs/api/javax/swing/Timer.html)
   
