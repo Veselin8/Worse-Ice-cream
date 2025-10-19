@@ -8,10 +8,15 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
 
     private static final int TILE_SIZE = 30;
     private static final int GRID_WIDTH = 20;
-    private static final int GRID_HEIGHT = 20;
-    private static final int PANEL_SIZE = TILE_SIZE * GRID_WIDTH;
+    private static final int GRID_HEIGHT = 20; // Playable area (no HUD)
+    private static final int HUD_HEIGHT = 1;   // Extra row for the HUD
+    private static final int TOTAL_HEIGHT = GRID_HEIGHT + HUD_HEIGHT;
+    private static final int PANEL_SIZE = TILE_SIZE * TOTAL_HEIGHT;
 
-    private Timer timer;
+    private Timer gameTimer;      // Handles movement and repainting
+    private Timer countdownTimer; // Handles the 2-minute countdown
+    private int timeRemaining;    // Time left in seconds (120 total)
+
     private Player player;
     private Monster1 monster;
     private List<Block> blocks;
@@ -20,51 +25,79 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
 
     private boolean upPressed, downPressed, leftPressed, rightPressed;
     private boolean gameOver = false;
+    private boolean paused = false;
 
     public MyPanel() {
-        setPreferredSize(new Dimension(PANEL_SIZE, PANEL_SIZE));
+        setPreferredSize(new Dimension(TILE_SIZE * GRID_WIDTH, PANEL_SIZE));
         setBackground(Color.BLACK);
         setFocusable(true);
         addKeyListener(this);
 
         initializeGame();
 
-        timer = new Timer(150, this);
-        timer.start();
+        // Movement / game loop timer
+        gameTimer = new Timer(150, this);
+        gameTimer.start();
+
+        // Countdown timer (1 second interval)
+        countdownTimer = new Timer(1000, e -> updateCountdown());
+        countdownTimer.start();
     }
 
     private void initializeGame() {
         blocks = new ArrayList<>();
         coinManager = new CoinManager();
 
-        // Assuming Player, Monster1, Block, CoinManager, and CollisionManager classes exist
         player = new Player(GRID_WIDTH / 2, GRID_HEIGHT / 2);
         player.setDirection(0, 0);
 
         monster = new Monster1(8, 0);
 
-        // Add some example blocks
-        addBlock(5, 5);
-        addBlock(5, 6);
-        addBlock(5, 7);
-        addBlock(10, 10);
-        addBlock(11, 10);
+        // Example blocks
+        addBlock(12, 10);
+        addBlock(10, 11);
+        addBlock(10, 12);
+        addBlock(10, 13);
+        addBlock(9, 10);
 
-        // Add coins
+        // Example coins
         coinManager.addCoin(2, 2);
         coinManager.addCoin(5, 4);
-        coinManager.addCoin(11, 10);
+        coinManager.addCoin(10, 18);
 
         collisionManager = new CollisionManager(player, monster, blocks, coinManager);
         gameOver = false;
+        paused = false;
         upPressed = downPressed = leftPressed = rightPressed = false;
+
+        // Reset time
+        timeRemaining = 120; // 2 minutes
     }
 
     public void restartGame() {
-        timer.stop();
+        gameTimer.stop();
+        countdownTimer.stop();
         initializeGame();
         requestFocusInWindow();
-        timer.start();
+        gameTimer.start();
+        countdownTimer.start();
+        repaint();
+    }
+
+    private void updateCountdown() {
+        if (gameOver || paused) return;
+
+        timeRemaining--;
+
+        if (timeRemaining <= 0) {
+            timeRemaining = 0;
+            gameOver = true;
+            gameTimer.stop();
+            countdownTimer.stop();
+            repaint();
+            showTimeUpDialog();
+        }
+
         repaint();
     }
 
@@ -79,7 +112,7 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
     }
 
     private void update() {
-        if (gameOver)
+        if (gameOver || paused)
             return;
 
         updatePlayerDirection();
@@ -92,43 +125,65 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         // Move monster
         monster.move(GRID_WIDTH, GRID_HEIGHT);
 
-        // Handle collisions via the manager
+        // Handle collisions
         if (collisionManager.handleCollisions()) {
             gameOver = true;
-            timer.stop();
-            // FIX: Force a repaint of the final collision state before the modal dialog blocks the thread.
-            repaint(); 
+            gameTimer.stop();
+            countdownTimer.stop();
+            repaint();
             showGameOverDialog();
         }
     }
 
     private void updatePlayerDirection() {
         int dx = 0, dy = 0;
-        // Prioritize vertical over horizontal if both are pressed (or based on press order)
-        if (upPressed) {
-            dy = -1;
-        } else if (downPressed) {
-            dy = 1;
+        if (upPressed) dy = -1;
+        else if (downPressed) dy = 1;
+
+        if (dy == 0) {
+            if (leftPressed) dx = -1;
+            else if (rightPressed) dx = 1;
         }
 
-        // Prioritize horizontal if no vertical movement is selected, or allow for diagonal
-        // Based on the original structure, it seems like only one direction (dx or dy) should be non-zero at a time
-        if (dy == 0) {
-            if (leftPressed) {
-                dx = -1;
-            } else if (rightPressed) {
-                dx = 1;
-            }
-        }
         player.setDirection(dx, dy);
     }
 
     private void showGameOverDialog() {
         JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
         if (parentFrame != null) {
-            // FIX: Ensure this line is NOT commented out to show the restart menu.
-            GameOverMenu.show(parentFrame);
+            GameOverMenu.show(parentFrame, "Game Over! You were caught by a monster!");
         }
+    }
+
+    private void showTimeUpDialog() {
+        JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
+        if (parentFrame != null) {
+            GameOverMenu.show(parentFrame, "Time’s Up! You ran out of time!");
+        }
+    }
+
+    private void showPauseMenu() {
+        JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
+        if (parentFrame != null) {
+            PauseMenu.show(parentFrame, this);
+        }
+    }
+
+    public void pauseGame() {
+        if (paused || gameOver) return;
+        paused = true;
+        gameTimer.stop();
+        countdownTimer.stop();
+        repaint();
+        showPauseMenu();
+    }
+
+    public void resumeGame() {
+        if (!paused || gameOver) return;
+        paused = false;
+        gameTimer.start();
+        countdownTimer.start();
+        requestFocusInWindow();
     }
 
     private void drawGrid(Graphics g) {
@@ -136,8 +191,8 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         for (int i = 0; i <= GRID_WIDTH; i++) {
             g.drawLine(i * TILE_SIZE, 0, i * TILE_SIZE, PANEL_SIZE);
         }
-        for (int i = 0; i <= GRID_HEIGHT; i++) {
-            g.drawLine(0, i * TILE_SIZE, PANEL_SIZE, i * TILE_SIZE);
+        for (int i = 0; i <= TOTAL_HEIGHT; i++) {
+            g.drawLine(0, i * TILE_SIZE, TILE_SIZE * GRID_WIDTH, i * TILE_SIZE);
         }
     }
 
@@ -146,24 +201,55 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         super.paintComponent(g);
         drawGrid(g);
 
-        // Assuming Block, CoinManager, Monster1, and Player have a draw method
+        // Draw game area
         for (Block block : blocks)
             block.draw(g, this, TILE_SIZE);
         coinManager.draw(g, this, TILE_SIZE);
         monster.draw(g, this, TILE_SIZE);
         player.draw(g, this, TILE_SIZE);
 
+        // Draw HUD background
+        g.setColor(Color.GRAY.darker());
+        g.fillRect(0, GRID_HEIGHT * TILE_SIZE, TILE_SIZE * GRID_WIDTH, TILE_SIZE);
+
+        // Draw HUD text (Coins + Timer)
         g.setColor(Color.WHITE);
         g.setFont(new Font("Arial", Font.BOLD, 18));
-        g.drawString("Coins: " + coinManager.getCollected(), 10, 20);
+
+        String coinText = "Coins: " + coinManager.getCollected();
+        int minutes = timeRemaining / 60;
+        int seconds = timeRemaining % 60;
+        String timeText = String.format("Time: %02d:%02d", minutes, seconds);
+
+        FontMetrics fm = g.getFontMetrics();
+        g.drawString(coinText, 10, GRID_HEIGHT * TILE_SIZE + (TILE_SIZE + fm.getAscent()) / 2 - 5);
+        g.drawString(timeText, TILE_SIZE * GRID_WIDTH - fm.stringWidth(timeText) - 10,
+                     GRID_HEIGHT * TILE_SIZE + (TILE_SIZE + fm.getAscent()) / 2 - 5);
+
+        // Optional: show "PAUSED" overlay
+        if (paused) {
+            g.setColor(new Color(0, 0, 0, 150));
+            g.fillRect(0, 0, getWidth(), getHeight());
+            g.setColor(Color.WHITE);
+            g.setFont(new Font("Arial", Font.BOLD, 40));
+            String text = "PAUSED";
+            int textWidth = g.getFontMetrics().stringWidth(text);
+            g.drawString(text, (getWidth() - textWidth) / 2, getHeight() / 2);
+        }
     }
 
     @Override
     public void keyPressed(KeyEvent e) {
-        if (gameOver)
+        int code = e.getKeyCode();
+
+        if (code == KeyEvent.VK_ESCAPE) {
+            pauseGame();
+            return;
+        }
+
+        if (gameOver || paused)
             return;
 
-        int code = e.getKeyCode();
         switch (code) {
             case KeyEvent.VK_W:
             case KeyEvent.VK_UP:
@@ -186,7 +272,7 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
 
     @Override
     public void keyReleased(KeyEvent e) {
-        if (gameOver)
+        if (gameOver || paused)
             return;
 
         int code = e.getKeyCode();
@@ -211,7 +297,5 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
     }
 
     @Override
-    public void keyTyped(KeyEvent e) {
-        // Not used
-    }
+    public void keyTyped(KeyEvent e) {}
 }
