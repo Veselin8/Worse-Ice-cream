@@ -26,7 +26,7 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
     private boolean upPressed, downPressed, leftPressed, rightPressed;
     private boolean gameOver = false;
     private boolean paused = false;
-    private boolean buildMode = false; // 🧱 build mode flag
+    private boolean buildMode = false; // build mode flag
 
     public MyPanel() {
         setPreferredSize(new Dimension(TILE_SIZE * GRID_WIDTH, PANEL_SIZE));
@@ -112,6 +112,19 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         if (gameOver || paused)
             return;
 
+        // Update coins collected
+        coinManager.update(player);
+
+        // Check win condition
+        if (coinManager.getRemaining() == 0) {
+            gameOver = true;
+            gameTimer.stop();
+            countdownTimer.stop();
+            repaint();
+            showVictoryDialog();
+            return;
+        }
+
         if (!buildMode) { 
             updatePlayerDirection();
         } else {
@@ -159,6 +172,13 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         }
     }
 
+    private void showVictoryDialog() {
+        JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
+        if (parentFrame != null) {
+            VictoryMenu.show(parentFrame);
+        }
+    }
+
     private void showPauseMenu() {
         JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
         if (parentFrame != null) {
@@ -185,15 +205,12 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
 
     private void drawGrid(Graphics g) {
         g.setColor(Color.DARK_GRAY);
-        for (int i = 0; i <= GRID_WIDTH; i++) {
+        for (int i = 0; i <= GRID_WIDTH; i++)
             g.drawLine(i * TILE_SIZE, 0, i * TILE_SIZE, PANEL_SIZE);
-        }
-        for (int i = 0; i <= TOTAL_HEIGHT; i++) {
+        for (int i = 0; i <= TOTAL_HEIGHT; i++)
             g.drawLine(0, i * TILE_SIZE, TILE_SIZE * GRID_WIDTH, i * TILE_SIZE);
-        }
     }
 
-    // Called when placing or removing a block
     private void placeOrRemoveBlock(int dx, int dy) {
         int targetX = player.getPos().x + dx;
         int targetY = player.getPos().y + dy;
@@ -202,14 +219,10 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
             return;
 
         boolean added = BlockManager.toggleBlockAt(targetX, targetY);
-        if (added) {
-            blocks.add(new Block(targetX, targetY));
-        } else {
-            blocks.removeIf(b -> b.getPos().x == targetX && b.getPos().y == targetY);
-        }
+        if (added) blocks.add(new Block(targetX, targetY));
+        else blocks.removeIf(b -> b.getPos().x == targetX && b.getPos().y == targetY);
 
-        // ⛏️ Exit build mode after placing/destroying
-        buildMode = false;
+        buildMode = false; // exit build mode
         repaint();
     }
 
@@ -218,8 +231,7 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         super.paintComponent(g);
         drawGrid(g);
 
-        for (Block block : blocks)
-            block.draw(g, this, TILE_SIZE);
+        for (Block block : blocks) block.draw(g, this, TILE_SIZE);
         coinManager.draw(g, this, TILE_SIZE);
         monster.draw(g, this, TILE_SIZE);
         player.draw(g, this, TILE_SIZE);
@@ -239,7 +251,6 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         g.drawString(timeText, TILE_SIZE * GRID_WIDTH - fm.stringWidth(timeText) - 10,
                      GRID_HEIGHT * TILE_SIZE + (TILE_SIZE + fm.getAscent()) / 2 - 5);
 
-        // 🧱 Show build mode overlay
         if (buildMode) {
             g.setColor(new Color(0, 0, 255, 100));
             g.fillRect(0, 0, getWidth(), getHeight());
@@ -274,79 +285,38 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
             return;
 
         if (code == KeyEvent.VK_SPACE) {
-            // 🧱 toggle build mode
             buildMode = !buildMode;
             repaint();
             return;
         }
 
-        // 🔹 If build mode is active: movement keys place/destroy then exit
         if (buildMode) {
             switch (code) {
-                case KeyEvent.VK_W:
-                case KeyEvent.VK_UP:
-                    placeOrRemoveBlock(0, -1);
-                    break;
-                case KeyEvent.VK_S:
-                case KeyEvent.VK_DOWN:
-                    placeOrRemoveBlock(0, 1);
-                    break;
-                case KeyEvent.VK_A:
-                case KeyEvent.VK_LEFT:
-                    placeOrRemoveBlock(-1, 0);
-                    break;
-                case KeyEvent.VK_D:
-                case KeyEvent.VK_RIGHT:
-                    placeOrRemoveBlock(1, 0);
-                    break;
+                case KeyEvent.VK_W: case KeyEvent.VK_UP: placeOrRemoveBlock(0, -1); break;
+                case KeyEvent.VK_S: case KeyEvent.VK_DOWN: placeOrRemoveBlock(0, 1); break;
+                case KeyEvent.VK_A: case KeyEvent.VK_LEFT: placeOrRemoveBlock(-1, 0); break;
+                case KeyEvent.VK_D: case KeyEvent.VK_RIGHT: placeOrRemoveBlock(1, 0); break;
             }
             return;
         }
 
-        // 🔹 Normal movement mode
         switch (code) {
-            case KeyEvent.VK_W:
-            case KeyEvent.VK_UP:
-                upPressed = true;
-                break;
-            case KeyEvent.VK_S:
-            case KeyEvent.VK_DOWN:
-                downPressed = true;
-                break;
-            case KeyEvent.VK_A:
-            case KeyEvent.VK_LEFT:
-                leftPressed = true;
-                break;
-            case KeyEvent.VK_D:
-            case KeyEvent.VK_RIGHT:
-                rightPressed = true;
-                break;
+            case KeyEvent.VK_W: case KeyEvent.VK_UP: upPressed = true; break;
+            case KeyEvent.VK_S: case KeyEvent.VK_DOWN: downPressed = true; break;
+            case KeyEvent.VK_A: case KeyEvent.VK_LEFT: leftPressed = true; break;
+            case KeyEvent.VK_D: case KeyEvent.VK_RIGHT: rightPressed = true; break;
         }
     }
 
     @Override
     public void keyReleased(KeyEvent e) {
-        if (gameOver || paused || buildMode)
-            return;
+        if (gameOver || paused || buildMode) return;
 
-        int code = e.getKeyCode();
-        switch (code) {
-            case KeyEvent.VK_W:
-            case KeyEvent.VK_UP:
-                upPressed = false;
-                break;
-            case KeyEvent.VK_S:
-            case KeyEvent.VK_DOWN:
-                downPressed = false;
-                break;
-            case KeyEvent.VK_A:
-            case KeyEvent.VK_LEFT:
-                leftPressed = false;
-                break;
-            case KeyEvent.VK_D:
-            case KeyEvent.VK_RIGHT:
-                rightPressed = false;
-                break;
+        switch (e.getKeyCode()) {
+            case KeyEvent.VK_W: case KeyEvent.VK_UP: upPressed = false; break;
+            case KeyEvent.VK_S: case KeyEvent.VK_DOWN: downPressed = false; break;
+            case KeyEvent.VK_A: case KeyEvent.VK_LEFT: leftPressed = false; break;
+            case KeyEvent.VK_D: case KeyEvent.VK_RIGHT: rightPressed = false; break;
         }
     }
 

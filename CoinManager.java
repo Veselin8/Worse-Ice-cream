@@ -1,5 +1,5 @@
 import java.awt.*;
-import java.awt.image.ImageObserver; // <-- FIX: Added this specific import
+import java.awt.image.ImageObserver;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -18,7 +18,7 @@ public class CoinManager {
         coins.add(new Coin(x, y));
     }
 
-    // Handles collection logic
+    // Update collected coins
     public void update(Player player) {
         Iterator<Coin> it = coins.iterator();
         while (it.hasNext()) {
@@ -40,12 +40,13 @@ public class CoinManager {
         return collected;
     }
 
+    public int getRemaining() {
+        return coins.size();
+    }
+
     public void reset() {
-        this.collected = 0; // Reset the counter
-        // If you remove coins from a list when they are collected,
-        // you will need to re-add them here.
-        // For example, if you have a separate list for 'activeCoins':
-        // activeCoins.clear();
-        // activeCoins.addAll(allCoinsFromStart);
+        collected = 0;
+        coins.clear();
     }
 }
+
