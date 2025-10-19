@@ -21,6 +21,11 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
     private boolean upPressed, downPressed, leftPressed, rightPressed;
     private boolean gameOver = false;
 
+    private static final int TOTAL_TIME = 120; // seconds (2 minutes)
+    private int timeRemaining = TOTAL_TIME;
+    private int tickCounter = 0; // counts how many frames have passed
+
+
     public MyPanel() {
         setPreferredSize(new Dimension(PANEL_SIZE, PANEL_SIZE));
         setBackground(Color.BLACK);
@@ -53,7 +58,7 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         // Add coins
         coinManager.addCoin(2, 2);
         coinManager.addCoin(5, 4);
-        coinManager.addCoin(11, 10);
+        coinManager.addCoin(11, 11);
 
         collisionManager = new CollisionManager(player, monster, blocks, coinManager);
         gameOver = false;
@@ -62,6 +67,8 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
 
     public void restartGame() {
         timer.stop();
+        timeRemaining = TOTAL_TIME;
+        tickCounter = 0;
         initializeGame();
         requestFocusInWindow();
         timer.start();
@@ -81,7 +88,21 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
     private void update() {
         if (gameOver)
             return;
+        
+        // Handle countdown
+        tickCounter++;
+        if (tickCounter >= 7) { // roughly 1 second (7 * 150ms ≈ 1050ms)
+            tickCounter = 0;
+            timeRemaining--;
 
+            if (timeRemaining <= 0) {
+                gameOver = true;
+                timer.stop();
+                repaint();
+                showTimeUpDialog(); // new method to show time-up message
+                return;
+            }  
+        }
         updatePlayerDirection();
 
         // Move player
@@ -141,10 +162,42 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         }
     }
 
+    private void toggleBlockInFrontOfPlayer() {
+        int dx = player.getDx();
+        int dy = player.getDy();
+
+        // Default facing up if player is stationary
+        if (dx == 0 && dy == 0) {
+            dy = -1;
+        }
+
+        final int targetX = player.getPos().x + dx;
+        final int targetY = player.getPos().y + dy;
+
+        // Check bounds
+        if (targetX < 0 || targetY < 0 || targetX >= GRID_WIDTH || targetY >= GRID_HEIGHT)
+            return;
+
+        // Toggle block
+        boolean added = BlockManager.toggleBlockAt(targetX, targetY);
+
+        if (added) {
+            // Create new ice block (solid)
+            blocks.add(new Block(targetX, targetY));
+        } else {
+            // Remove from visible list and from BlockManager
+            blocks.removeIf(b -> b.getPos().x == targetX && b.getPos().y == targetY);
+        }
+
+        repaint();
+    }
+
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         drawGrid(g);
+        g.drawString("Time: " + formatTime(timeRemaining), 150, 20);
+
 
         // Assuming Block, CoinManager, Monster1, and Player have a draw method
         for (Block block : blocks)
@@ -181,6 +234,9 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
             case KeyEvent.VK_RIGHT:
                 rightPressed = true;
                 break;
+            case KeyEvent.VK_SPACE:
+                toggleBlockInFrontOfPlayer();
+                break;
         }
     }
 
@@ -213,5 +269,19 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
     @Override
     public void keyTyped(KeyEvent e) {
         // Not used
+    }
+
+    private String formatTime(int seconds) {
+        int mins = seconds / 60;
+        int secs = seconds % 60;
+        return String.format("%02d:%02d", mins, secs);
+    }
+
+    private void showTimeUpDialog() {
+        JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
+        if (parentFrame != null) {
+            JOptionPane.showMessageDialog(parentFrame, "Time's up! You lost!", "Game Over", JOptionPane.INFORMATION_MESSAGE);
+            GameOverMenu.show(parentFrame); // reuse your existing restart system
+        }
     }
 }
