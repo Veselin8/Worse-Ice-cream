@@ -11,7 +11,8 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
     private static final int GRID_HEIGHT = 20;
     private static final int HUD_HEIGHT = 1;
     private static final int TOTAL_HEIGHT = GRID_HEIGHT + HUD_HEIGHT;
-    private static final int PANEL_SIZE = TILE_SIZE * TOTAL_HEIGHT;
+    // PANEL_SIZE is now correctly calculated as the grid + HUD
+    private static final int PANEL_SIZE = TILE_SIZE * GRID_HEIGHT + TILE_SIZE * HUD_HEIGHT;
 
     private Timer gameTimer;
     private Timer countdownTimer;
@@ -29,6 +30,7 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
     private boolean buildMode = false; // build mode flag
 
     public MyPanel() {
+        // The preferred size should use the full panel size (Grid + HUD)
         setPreferredSize(new Dimension(TILE_SIZE * GRID_WIDTH, PANEL_SIZE));
         setBackground(Color.BLACK);
         setFocusable(true);
@@ -125,7 +127,7 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
             return;
         }
 
-        if (!buildMode) { 
+        if (!buildMode) {
             updatePlayerDirection();
         } else {
             player.setDirection(0, 0);
@@ -205,10 +207,18 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
 
     private void drawGrid(Graphics g) {
         g.setColor(Color.DARK_GRAY);
+
+        int gridPixelWidth = TILE_SIZE * GRID_WIDTH;
+        int gridPixelHeight = TILE_SIZE * GRID_HEIGHT; // This is the bottom of the game area
+
+        // Draw vertical lines, stopping at the bottom of the game grid
         for (int i = 0; i <= GRID_WIDTH; i++)
-            g.drawLine(i * TILE_SIZE, 0, i * TILE_SIZE, PANEL_SIZE);
-        for (int i = 0; i <= TOTAL_HEIGHT; i++)
-            g.drawLine(0, i * TILE_SIZE, TILE_SIZE * GRID_WIDTH, i * TILE_SIZE);
+            g.drawLine(i * TILE_SIZE, 0, i * TILE_SIZE, gridPixelHeight);
+
+        // Draw horizontal lines, stopping at the bottom of the game grid (i <= GRID_HEIGHT)
+        // This draws the 21 lines needed (0 to 20) to create 20 rows.
+        for (int i = 0; i <= GRID_HEIGHT; i++)
+            g.drawLine(0, i * TILE_SIZE, gridPixelWidth, i * TILE_SIZE);
     }
 
     private void placeOrRemoveBlock(int dx, int dy) {
@@ -229,16 +239,19 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
-        drawGrid(g);
+        drawGrid(g); // This now only draws the game grid
 
+        // Draw game elements
         for (Block block : blocks) block.draw(g, this, TILE_SIZE);
         coinManager.draw(g, this, TILE_SIZE);
         monster.draw(g, this, TILE_SIZE);
         player.draw(g, this, TILE_SIZE);
 
+        // Draw the HUD background
         g.setColor(Color.GRAY.darker());
-        g.fillRect(0, GRID_HEIGHT * TILE_SIZE, TILE_SIZE * GRID_WIDTH, TILE_SIZE);
+        g.fillRect(0, GRID_HEIGHT * TILE_SIZE, TILE_SIZE * GRID_WIDTH, TILE_SIZE * HUD_HEIGHT); // Use HUD_HEIGHT
 
+        // Draw HUD text
         g.setColor(Color.WHITE);
         g.setFont(new Font("Arial", Font.BOLD, 18));
         String coinText = "Coins: " + coinManager.getCollected();
@@ -247,10 +260,12 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         String timeText = String.format("Time: %02d:%02d", minutes, seconds);
 
         FontMetrics fm = g.getFontMetrics();
-        g.drawString(coinText, 10, GRID_HEIGHT * TILE_SIZE + (TILE_SIZE + fm.getAscent()) / 2 - 5);
-        g.drawString(timeText, TILE_SIZE * GRID_WIDTH - fm.stringWidth(timeText) - 10,
-                     GRID_HEIGHT * TILE_SIZE + (TILE_SIZE + fm.getAscent()) / 2 - 5);
+        // Correctly center text in the HUD row
+        int textY = GRID_HEIGHT * TILE_SIZE + (TILE_SIZE + fm.getAscent()) / 2 - 5;
+        g.drawString(coinText, 10, textY);
+        g.drawString(timeText, TILE_SIZE * GRID_WIDTH - fm.stringWidth(timeText) - 10, textY);
 
+        // --- Overlays ---
         if (buildMode) {
             g.setColor(new Color(0, 0, 255, 100));
             g.fillRect(0, 0, getWidth(), getHeight());
@@ -323,4 +338,3 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
     @Override
     public void keyTyped(KeyEvent e) {}
 }
-
