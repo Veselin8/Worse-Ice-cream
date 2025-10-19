@@ -1,12 +1,10 @@
-// Main.java
-
 import javax.swing.SwingUtilities;
 import javax.swing.JFrame;
 
 public class Main {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            new MyFrame(); // Assumes MyFrame is in its own file
+            new MyFrame();
         });
     }
 }
