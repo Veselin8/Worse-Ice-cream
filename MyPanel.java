@@ -8,14 +8,14 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
 
     private static final int TILE_SIZE = 30;
     private static final int GRID_WIDTH = 20;
-    private static final int GRID_HEIGHT = 20; // Playable area (no HUD)
-    private static final int HUD_HEIGHT = 1;   // Extra row for the HUD
+    private static final int GRID_HEIGHT = 20;
+    private static final int HUD_HEIGHT = 1;
     private static final int TOTAL_HEIGHT = GRID_HEIGHT + HUD_HEIGHT;
     private static final int PANEL_SIZE = TILE_SIZE * TOTAL_HEIGHT;
 
-    private Timer gameTimer;      // Handles movement and repainting
-    private Timer countdownTimer; // Handles the 2-minute countdown
-    private int timeRemaining;    // Time left in seconds (120 total)
+    private Timer gameTimer;
+    private Timer countdownTimer;
+    private int timeRemaining;
 
     private Player player;
     private Monster1 monster;
@@ -27,6 +27,8 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
     private boolean gameOver = false;
     private boolean paused = false;
 
+    private int tickCounter = 0; // Counts how many ticks have passed
+
     public MyPanel() {
         setPreferredSize(new Dimension(TILE_SIZE * GRID_WIDTH, PANEL_SIZE));
         setBackground(Color.BLACK);
@@ -35,11 +37,11 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
 
         initializeGame();
 
-        // Movement / game loop timer
-        gameTimer = new Timer(150, this);
+        // Game loop timer — 5× faster (was 150ms → now 30ms)
+        gameTimer = new Timer(30, this);
         gameTimer.start();
 
-        // Countdown timer (1 second interval)
+        // Countdown timer (still 1 second per tick)
         countdownTimer = new Timer(1000, e -> updateCountdown());
         countdownTimer.start();
     }
@@ -70,8 +72,8 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         paused = false;
         upPressed = downPressed = leftPressed = rightPressed = false;
 
-        // Reset time
-        timeRemaining = 120; // 2 minutes
+        timeRemaining = 120;
+        tickCounter = 0;
     }
 
     public void restartGame() {
@@ -115,15 +117,20 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         if (gameOver || paused)
             return;
 
+        tickCounter++;
+
+        // Update direction each tick for responsiveness
         updatePlayerDirection();
 
-        // Move player
-        if (player.getDx() != 0 || player.getDy() != 0) {
+        // Move player every 5 ticks
+        if (tickCounter % 5 == 0 && (player.getDx() != 0 || player.getDy() != 0)) {
             player.move(GRID_WIDTH, GRID_HEIGHT);
         }
 
-        // Move monster
-        monster.move(GRID_WIDTH, GRID_HEIGHT);
+        // Move monster every 4 ticks
+        if (tickCounter % 4 == 0) {
+            monster.move(GRID_WIDTH, GRID_HEIGHT);
+        }
 
         // Handle collisions
         if (collisionManager.handleCollisions()) {
@@ -196,53 +203,22 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         }
     }
 
-    private void toggleBlockInFrontOfPlayer() {
-        int dx = player.getDx();
-        int dy = player.getDy();
-
-        // Default facing up if player is stationary
-        if (dx == 0 && dy == 0) {
-            dy = -1;
-        }
-
-        final int targetX = player.getPos().x + dx;
-        final int targetY = player.getPos().y + dy;
-
-        // Check bounds
-        if (targetX < 0 || targetY < 0 || targetX >= GRID_WIDTH || targetY >= GRID_HEIGHT)
-            return;
-
-        // Toggle block
-        boolean added = BlockManager.toggleBlockAt(targetX, targetY);
-
-        if (added) {
-            // Create new ice block (solid)
-            blocks.add(new Block(targetX, targetY));
-        } else {
-            // Remove from visible list and from BlockManager
-            blocks.removeIf(b -> b.getPos().x == targetX && b.getPos().y == targetY);
-        }
-
-        repaint();
-    }
-
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         drawGrid(g);
 
-        // Draw game area
         for (Block block : blocks)
             block.draw(g, this, TILE_SIZE);
         coinManager.draw(g, this, TILE_SIZE);
         monster.draw(g, this, TILE_SIZE);
         player.draw(g, this, TILE_SIZE);
 
-        // Draw HUD background
+        // HUD background
         g.setColor(Color.GRAY.darker());
         g.fillRect(0, GRID_HEIGHT * TILE_SIZE, TILE_SIZE * GRID_WIDTH, TILE_SIZE);
 
-        // Draw HUD text (Coins + Timer)
+        // HUD text
         g.setColor(Color.WHITE);
         g.setFont(new Font("Arial", Font.BOLD, 18));
 
@@ -256,7 +232,6 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         g.drawString(timeText, TILE_SIZE * GRID_WIDTH - fm.stringWidth(timeText) - 10,
                      GRID_HEIGHT * TILE_SIZE + (TILE_SIZE + fm.getAscent()) / 2 - 5);
 
-        // Optional: show "PAUSED" overlay
         if (paused) {
             g.setColor(new Color(0, 0, 0, 150));
             g.fillRect(0, 0, getWidth(), getHeight());
@@ -296,9 +271,6 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
             case KeyEvent.VK_D:
             case KeyEvent.VK_RIGHT:
                 rightPressed = true;
-                break;
-            case KeyEvent.VK_SPACE:
-                toggleBlockInFrontOfPlayer();
                 break;
         }
     }
