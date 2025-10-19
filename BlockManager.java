@@ -21,5 +21,16 @@ public class BlockManager {
     public static Set<Point> getBlocks() {
         return blockPositions;
     }
+    
+    public static boolean toggleBlockAt(int x, int y) {
+        Point p = new Point(x, y);
+        if (blockPositions.contains(p)) {
+            blockPositions.remove(p);
+            return false; // block removed
+        } else {
+            blockPositions.add(p);
+            return true; // block added
+        }
+    }
 }
 

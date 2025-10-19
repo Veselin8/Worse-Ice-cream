@@ -12,17 +12,22 @@ public class Monster1 extends MovingObject {
 
     // Call this every tick
     public void update(int gridHeight) {
-        // Move vertically
         Point next = new Point(pos.x, pos.y + direction);
 
-        // Bounce if hitting top or bottom
-        if (next.y < 0 || next.y >= gridHeight) {
+        // If the next cell is blocked or out of bounds, reverse direction
+        if (next.y < 0 || next.y >= gridHeight || BlockManager.isBlocked(next)) {
             direction *= -1;
             next.y = pos.y + direction;
+
+            // Check again in case both sides are blocked
+            if (next.y < 0 || next.y >= gridHeight || BlockManager.isBlocked(next)) {
+                return;
+            }
         }
 
         pos = next;
     }
+
 
     // Override move to ignore blocks for vertical movement if you want
     @Override
