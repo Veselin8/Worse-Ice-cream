@@ -47,5 +47,29 @@ public class StartMenu extends JPanel {
 
         gbc.gridy = 2;
         add(exitButton, gbc);
+
+        JLabel instructions = new JLabel("Collect fruit, avoid the monster and be fast!", SwingConstants.CENTER);
+        instructions.setFont(new Font("Ariel", Font.ITALIC, 18));
+
+        gbc.gridy = 3;
+        add(instructions, gbc);
+
+        JLabel text1 = new JLabel("Player movement: UP/DOWN/LEFT/RIGHT arrows", SwingConstants.CENTER);
+        text1.setFont(new Font("Ariel", Font.PLAIN, 14));
+
+        gbc.gridy = 4;
+        add(text1, gbc);
+
+        JLabel text2 = new JLabel("Ice blocks: SPACE + UP/DOWN/LEFT/RIGHT for creating/destroying ice", SwingConstants.CENTER);
+        text2.setFont(new Font("Ariel", Font.PLAIN, 14));
+
+        gbc.gridy = 5;
+        add(text2, gbc);
+
+        JLabel text3 = new JLabel("Pause: ESC", SwingConstants.CENTER);
+        text3.setFont(new Font("Ariel", Font.PLAIN, 14));
+
+        gbc.gridy = 6;
+        add(text3, gbc);
     }
 }
