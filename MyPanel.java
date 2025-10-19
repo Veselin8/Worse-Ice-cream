@@ -53,7 +53,7 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         // Add coins
         coinManager.addCoin(2, 2);
         coinManager.addCoin(5, 4);
-        coinManager.addCoin(11, 10);
+        coinManager.addCoin(11, 11);
 
         collisionManager = new CollisionManager(player, monster, blocks, coinManager);
         gameOver = false;
@@ -141,6 +141,36 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         }
     }
 
+    private void toggleBlockInFrontOfPlayer() {
+        int dx = player.getDx();
+        int dy = player.getDy();
+
+        // Default facing up if player is stationary
+        if (dx == 0 && dy == 0) {
+            dy = -1;
+        }
+
+        final int targetX = player.getPos().x + dx;
+        final int targetY = player.getPos().y + dy;
+
+        // Check bounds
+        if (targetX < 0 || targetY < 0 || targetX >= GRID_WIDTH || targetY >= GRID_HEIGHT)
+            return;
+
+        // Toggle block
+        boolean added = BlockManager.toggleBlockAt(targetX, targetY);
+
+        if (added) {
+            // Create new ice block (solid)
+            blocks.add(new Block(targetX, targetY));
+        } else {
+            // Remove from visible list and from BlockManager
+            blocks.removeIf(b -> b.getPos().x == targetX && b.getPos().y == targetY);
+        }
+
+        repaint();
+    }
+
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
@@ -180,6 +210,9 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
             case KeyEvent.VK_D:
             case KeyEvent.VK_RIGHT:
                 rightPressed = true;
+                break;
+            case KeyEvent.VK_SPACE:
+                toggleBlockInFrontOfPlayer();
                 break;
         }
     }
