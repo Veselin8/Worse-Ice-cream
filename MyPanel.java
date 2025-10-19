@@ -8,14 +8,14 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
 
     private static final int TILE_SIZE = 30;
     private static final int GRID_WIDTH = 20;
-    private static final int GRID_HEIGHT = 20; // Playable area (no HUD)
-    private static final int HUD_HEIGHT = 1;   // Extra row for the HUD
+    private static final int GRID_HEIGHT = 20;
+    private static final int HUD_HEIGHT = 1;
     private static final int TOTAL_HEIGHT = GRID_HEIGHT + HUD_HEIGHT;
     private static final int PANEL_SIZE = TILE_SIZE * TOTAL_HEIGHT;
 
-    private Timer gameTimer;      // Handles movement and repainting
-    private Timer countdownTimer; // Handles the 2-minute countdown
-    private int timeRemaining;    // Time left in seconds (120 total)
+    private Timer gameTimer;
+    private Timer countdownTimer;
+    private int timeRemaining;
 
     private Player player;
     private Monster1 monster;
@@ -26,6 +26,7 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
     private boolean upPressed, downPressed, leftPressed, rightPressed;
     private boolean gameOver = false;
     private boolean paused = false;
+    private boolean buildMode = false; // 🧱 build mode flag
 
     public MyPanel() {
         setPreferredSize(new Dimension(TILE_SIZE * GRID_WIDTH, PANEL_SIZE));
@@ -35,16 +36,15 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
 
         initializeGame();
 
-        // Movement / game loop timer
         gameTimer = new Timer(150, this);
         gameTimer.start();
 
-        // Countdown timer (1 second interval)
         countdownTimer = new Timer(1000, e -> updateCountdown());
         countdownTimer.start();
     }
 
     private void initializeGame() {
+        BlockManager.clear();
         blocks = new ArrayList<>();
         coinManager = new CoinManager();
 
@@ -53,14 +53,12 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
 
         monster = new Monster1(8, 0);
 
-        // Example blocks
         addBlock(12, 10);
         addBlock(10, 11);
         addBlock(10, 12);
         addBlock(10, 13);
         addBlock(9, 10);
 
-        // Example coins
         coinManager.addCoin(2, 2);
         coinManager.addCoin(5, 4);
         coinManager.addCoin(10, 18);
@@ -68,10 +66,9 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         collisionManager = new CollisionManager(player, monster, blocks, coinManager);
         gameOver = false;
         paused = false;
+        buildMode = false;
         upPressed = downPressed = leftPressed = rightPressed = false;
-
-        // Reset time
-        timeRemaining = 120; // 2 minutes
+        timeRemaining = 120;
     }
 
     public void restartGame() {
@@ -88,7 +85,6 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         if (gameOver || paused) return;
 
         timeRemaining--;
-
         if (timeRemaining <= 0) {
             timeRemaining = 0;
             gameOver = true;
@@ -97,12 +93,13 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
             repaint();
             showTimeUpDialog();
         }
-
         repaint();
     }
 
     private void addBlock(int x, int y) {
-        blocks.add(new Block(x, y));
+        Block block = new Block(x, y);
+        blocks.add(block);
+        BlockManager.addBlock(block);
     }
 
     @Override
@@ -115,17 +112,18 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         if (gameOver || paused)
             return;
 
-        updatePlayerDirection();
+        if (!buildMode) { 
+            updatePlayerDirection();
+        } else {
+            player.setDirection(0, 0);
+        }
 
-        // Move player
         if (player.getDx() != 0 || player.getDy() != 0) {
             player.move(GRID_WIDTH, GRID_HEIGHT);
         }
 
-        // Move monster
         monster.move(GRID_WIDTH, GRID_HEIGHT);
 
-        // Handle collisions
         if (collisionManager.handleCollisions()) {
             gameOver = true;
             gameTimer.stop();
@@ -144,7 +142,6 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
             if (leftPressed) dx = -1;
             else if (rightPressed) dx = 1;
         }
-
         player.setDirection(dx, dy);
     }
 
@@ -196,33 +193,23 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         }
     }
 
-    private void toggleBlockInFrontOfPlayer() {
-        int dx = player.getDx();
-        int dy = player.getDy();
+    // Called when placing or removing a block
+    private void placeOrRemoveBlock(int dx, int dy) {
+        int targetX = player.getPos().x + dx;
+        int targetY = player.getPos().y + dy;
 
-        // Default facing up if player is stationary
-        if (dx == 0 && dy == 0) {
-            dy = -1;
-        }
-
-        final int targetX = player.getPos().x + dx;
-        final int targetY = player.getPos().y + dy;
-
-        // Check bounds
         if (targetX < 0 || targetY < 0 || targetX >= GRID_WIDTH || targetY >= GRID_HEIGHT)
             return;
 
-        // Toggle block
         boolean added = BlockManager.toggleBlockAt(targetX, targetY);
-
         if (added) {
-            // Create new ice block (solid)
             blocks.add(new Block(targetX, targetY));
         } else {
-            // Remove from visible list and from BlockManager
             blocks.removeIf(b -> b.getPos().x == targetX && b.getPos().y == targetY);
         }
 
+        // ⛏️ Exit build mode after placing/destroying
+        buildMode = false;
         repaint();
     }
 
@@ -231,21 +218,17 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         super.paintComponent(g);
         drawGrid(g);
 
-        // Draw game area
         for (Block block : blocks)
             block.draw(g, this, TILE_SIZE);
         coinManager.draw(g, this, TILE_SIZE);
         monster.draw(g, this, TILE_SIZE);
         player.draw(g, this, TILE_SIZE);
 
-        // Draw HUD background
         g.setColor(Color.GRAY.darker());
         g.fillRect(0, GRID_HEIGHT * TILE_SIZE, TILE_SIZE * GRID_WIDTH, TILE_SIZE);
 
-        // Draw HUD text (Coins + Timer)
         g.setColor(Color.WHITE);
         g.setFont(new Font("Arial", Font.BOLD, 18));
-
         String coinText = "Coins: " + coinManager.getCollected();
         int minutes = timeRemaining / 60;
         int seconds = timeRemaining % 60;
@@ -256,7 +239,17 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         g.drawString(timeText, TILE_SIZE * GRID_WIDTH - fm.stringWidth(timeText) - 10,
                      GRID_HEIGHT * TILE_SIZE + (TILE_SIZE + fm.getAscent()) / 2 - 5);
 
-        // Optional: show "PAUSED" overlay
+        // 🧱 Show build mode overlay
+        if (buildMode) {
+            g.setColor(new Color(0, 0, 255, 100));
+            g.fillRect(0, 0, getWidth(), getHeight());
+            g.setColor(Color.WHITE);
+            g.setFont(new Font("Arial", Font.BOLD, 30));
+            String text = "BUILD MODE";
+            int textWidth = g.getFontMetrics().stringWidth(text);
+            g.drawString(text, (getWidth() - textWidth) / 2, getHeight() / 2);
+        }
+
         if (paused) {
             g.setColor(new Color(0, 0, 0, 150));
             g.fillRect(0, 0, getWidth(), getHeight());
@@ -280,6 +273,37 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         if (gameOver || paused)
             return;
 
+        if (code == KeyEvent.VK_SPACE) {
+            // 🧱 toggle build mode
+            buildMode = !buildMode;
+            repaint();
+            return;
+        }
+
+        // 🔹 If build mode is active: movement keys place/destroy then exit
+        if (buildMode) {
+            switch (code) {
+                case KeyEvent.VK_W:
+                case KeyEvent.VK_UP:
+                    placeOrRemoveBlock(0, -1);
+                    break;
+                case KeyEvent.VK_S:
+                case KeyEvent.VK_DOWN:
+                    placeOrRemoveBlock(0, 1);
+                    break;
+                case KeyEvent.VK_A:
+                case KeyEvent.VK_LEFT:
+                    placeOrRemoveBlock(-1, 0);
+                    break;
+                case KeyEvent.VK_D:
+                case KeyEvent.VK_RIGHT:
+                    placeOrRemoveBlock(1, 0);
+                    break;
+            }
+            return;
+        }
+
+        // 🔹 Normal movement mode
         switch (code) {
             case KeyEvent.VK_W:
             case KeyEvent.VK_UP:
@@ -297,15 +321,12 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
             case KeyEvent.VK_RIGHT:
                 rightPressed = true;
                 break;
-            case KeyEvent.VK_SPACE:
-                toggleBlockInFrontOfPlayer();
-                break;
         }
     }
 
     @Override
     public void keyReleased(KeyEvent e) {
-        if (gameOver || paused)
+        if (gameOver || paused || buildMode)
             return;
 
         int code = e.getKeyCode();
@@ -332,3 +353,4 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
     @Override
     public void keyTyped(KeyEvent e) {}
 }
+
