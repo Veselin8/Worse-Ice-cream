@@ -10,8 +10,6 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
     private static final int GRID_WIDTH = 20;
     private static final int GRID_HEIGHT = 20;
     private static final int HUD_HEIGHT = 1;
-    private static final int TOTAL_HEIGHT = GRID_HEIGHT + HUD_HEIGHT;
-    // PANEL_SIZE is now correctly calculated as the grid + HUD
     private static final int PANEL_SIZE = TILE_SIZE * GRID_HEIGHT + TILE_SIZE * HUD_HEIGHT;
 
     private Timer gameTimer;
@@ -19,7 +17,7 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
     private int timeRemaining;
 
     private Player player;
-    private Monster1 monster;
+    private List<Monster> monsters;
     private List<Block> blocks;
     private CoinManager coinManager;
     private CollisionManager collisionManager;
@@ -27,10 +25,9 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
     private boolean upPressed, downPressed, leftPressed, rightPressed;
     private boolean gameOver = false;
     private boolean paused = false;
-    private boolean buildMode = false; // build mode flag
+    private boolean buildMode = false;
 
     public MyPanel() {
-        // The preferred size should use the full panel size (Grid + HUD)
         setPreferredSize(new Dimension(TILE_SIZE * GRID_WIDTH, PANEL_SIZE));
         setBackground(Color.BLACK);
         setFocusable(true);
@@ -38,7 +35,7 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
 
         initializeGame();
 
-        gameTimer = new Timer(150, this);
+        gameTimer = new Timer(50, this);
         gameTimer.start();
 
         countdownTimer = new Timer(1000, e -> updateCountdown());
@@ -50,22 +47,36 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         blocks = new ArrayList<>();
         coinManager = new CoinManager();
 
+        // --- Player ---
         player = new Player(GRID_WIDTH / 2, GRID_HEIGHT / 2);
         player.setDirection(0, 0);
+        player.setSpeed(3); // Moves every tick (adjustable)
 
-        monster = new Monster1(8, 0);
+        // --- Monsters ---
+        monsters = new ArrayList<>();
+        Monster1 m1 = new Monster1(8, 0);  
+        Monster2 m2 = new Monster2(13, 15); 
+        m1.setSpeed(2); // moves every 2 ticks
+        m2.setSpeed(5); // moves every tick
+        monsters.add(m1);
+        monsters.add(m2);
 
+        // --- Blocks ---
         addBlock(12, 10);
         addBlock(10, 11);
         addBlock(10, 12);
         addBlock(10, 13);
         addBlock(9, 10);
 
+        // --- Coins ---
         coinManager.addCoin(2, 2);
         coinManager.addCoin(5, 4);
         coinManager.addCoin(10, 18);
 
-        collisionManager = new CollisionManager(player, monster, blocks, coinManager);
+        // --- Collision Manager ---
+        collisionManager = new CollisionManager(player, monsters, blocks, coinManager);
+
+        // --- Game state ---
         gameOver = false;
         paused = false;
         buildMode = false;
@@ -111,13 +122,11 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
     }
 
     private void update() {
-        if (gameOver || paused)
-            return;
+        if (gameOver || paused) return;
 
-        // Update coins collected
         coinManager.update(player);
 
-        // Check win condition
+        // --- Win condition ---
         if (coinManager.getRemaining() == 0) {
             gameOver = true;
             gameTimer.stop();
@@ -127,18 +136,20 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
             return;
         }
 
-        if (!buildMode) {
-            updatePlayerDirection();
-        } else {
-            player.setDirection(0, 0);
-        }
+        if (!buildMode) updatePlayerDirection();
+        else player.setDirection(0, 0);
 
+        // --- Move player ---
         if (player.getDx() != 0 || player.getDy() != 0) {
             player.move(GRID_WIDTH, GRID_HEIGHT);
         }
 
-        monster.move(GRID_WIDTH, GRID_HEIGHT);
+        // --- Move all monsters ---
+        for (Monster monster : monsters) {
+            monster.move(GRID_WIDTH, GRID_HEIGHT);
+        }
 
+        // --- Handle collisions ---
         if (collisionManager.handleCollisions()) {
             gameOver = true;
             gameTimer.stop();
@@ -160,32 +171,25 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         player.setDirection(dx, dy);
     }
 
+    // --- Dialogs ---
     private void showGameOverDialog() {
-        JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
-        if (parentFrame != null) {
-            GameOverMenu.show(parentFrame, "Game Over! You were caught by a monster!");
-        }
+        JFrame parent = (JFrame) SwingUtilities.getWindowAncestor(this);
+        if (parent != null) GameOverMenu.show(parent, "Game Over! You were caught by a monster!");
     }
 
     private void showTimeUpDialog() {
-        JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
-        if (parentFrame != null) {
-            GameOverMenu.show(parentFrame, "Time’s Up! You ran out of time!");
-        }
+        JFrame parent = (JFrame) SwingUtilities.getWindowAncestor(this);
+        if (parent != null) GameOverMenu.show(parent, "Time’s Up! You ran out of time!");
     }
 
     private void showVictoryDialog() {
-        JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
-        if (parentFrame != null) {
-            VictoryMenu.show(parentFrame);
-        }
+        JFrame parent = (JFrame) SwingUtilities.getWindowAncestor(this);
+        if (parent != null) VictoryMenu.show(parent);
     }
 
     private void showPauseMenu() {
-        JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
-        if (parentFrame != null) {
-            PauseMenu.show(parentFrame, this);
-        }
+        JFrame parent = (JFrame) SwingUtilities.getWindowAncestor(this);
+        if (parent != null) PauseMenu.show(parent, this);
     }
 
     public void pauseGame() {
@@ -205,67 +209,55 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         requestFocusInWindow();
     }
 
+    // --- Grid drawing ---
     private void drawGrid(Graphics g) {
         g.setColor(Color.DARK_GRAY);
+        int widthPx = TILE_SIZE * GRID_WIDTH;
+        int heightPx = TILE_SIZE * GRID_HEIGHT;
 
-        int gridPixelWidth = TILE_SIZE * GRID_WIDTH;
-        int gridPixelHeight = TILE_SIZE * GRID_HEIGHT; // This is the bottom of the game area
-
-        // Draw vertical lines, stopping at the bottom of the game grid
-        for (int i = 0; i <= GRID_WIDTH; i++)
-            g.drawLine(i * TILE_SIZE, 0, i * TILE_SIZE, gridPixelHeight);
-
-        // Draw horizontal lines, stopping at the bottom of the game grid (i <= GRID_HEIGHT)
-        // This draws the 21 lines needed (0 to 20) to create 20 rows.
-        for (int i = 0; i <= GRID_HEIGHT; i++)
-            g.drawLine(0, i * TILE_SIZE, gridPixelWidth, i * TILE_SIZE);
+        for (int i = 0; i <= GRID_WIDTH; i++) g.drawLine(i * TILE_SIZE, 0, i * TILE_SIZE, heightPx);
+        for (int i = 0; i <= GRID_HEIGHT; i++) g.drawLine(0, i * TILE_SIZE, widthPx, i * TILE_SIZE);
     }
 
     private void placeOrRemoveBlock(int dx, int dy) {
         int targetX = player.getPos().x + dx;
         int targetY = player.getPos().y + dy;
 
-        if (targetX < 0 || targetY < 0 || targetX >= GRID_WIDTH || targetY >= GRID_HEIGHT)
-            return;
+        if (targetX < 0 || targetY < 0 || targetX >= GRID_WIDTH || targetY >= GRID_HEIGHT) return;
 
         boolean added = BlockManager.toggleBlockAt(targetX, targetY);
         if (added) blocks.add(new Block(targetX, targetY));
         else blocks.removeIf(b -> b.getPos().x == targetX && b.getPos().y == targetY);
 
-        buildMode = false; // exit build mode
+        buildMode = false;
         repaint();
     }
 
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
-        drawGrid(g); // This now only draws the game grid
+        drawGrid(g);
 
-        // Draw game elements
+        // --- Draw blocks, coins, monsters, player ---
         for (Block block : blocks) block.draw(g, this, TILE_SIZE);
         coinManager.draw(g, this, TILE_SIZE);
-        monster.draw(g, this, TILE_SIZE);
+        for (Monster monster : monsters) monster.draw(g, this, TILE_SIZE);
         player.draw(g, this, TILE_SIZE);
 
-        // Draw the HUD background
+        // --- HUD ---
         g.setColor(Color.GRAY.darker());
-        g.fillRect(0, GRID_HEIGHT * TILE_SIZE, TILE_SIZE * GRID_WIDTH, TILE_SIZE * HUD_HEIGHT); // Use HUD_HEIGHT
+        g.fillRect(0, GRID_HEIGHT * TILE_SIZE, TILE_SIZE * GRID_WIDTH, TILE_SIZE * HUD_HEIGHT);
 
-        // Draw HUD text
         g.setColor(Color.WHITE);
         g.setFont(new Font("Arial", Font.BOLD, 18));
         String coinText = "Coins: " + coinManager.getCollected();
-        int minutes = timeRemaining / 60;
-        int seconds = timeRemaining % 60;
-        String timeText = String.format("Time: %02d:%02d", minutes, seconds);
-
+        String timeText = String.format("Time: %02d:%02d", timeRemaining / 60, timeRemaining % 60);
         FontMetrics fm = g.getFontMetrics();
-        // Correctly center text in the HUD row
         int textY = GRID_HEIGHT * TILE_SIZE + (TILE_SIZE + fm.getAscent()) / 2 - 5;
         g.drawString(coinText, 10, textY);
         g.drawString(timeText, TILE_SIZE * GRID_WIDTH - fm.stringWidth(timeText) - 10, textY);
 
-        // --- Overlays ---
+        // --- Build overlay ---
         if (buildMode) {
             g.setColor(new Color(0, 0, 255, 100));
             g.fillRect(0, 0, getWidth(), getHeight());
@@ -276,6 +268,7 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
             g.drawString(text, (getWidth() - textWidth) / 2, getHeight() / 2);
         }
 
+        // --- Pause overlay ---
         if (paused) {
             g.setColor(new Color(0, 0, 0, 150));
             g.fillRect(0, 0, getWidth(), getHeight());
@@ -287,23 +280,15 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         }
     }
 
+    // --- Key handling ---
     @Override
     public void keyPressed(KeyEvent e) {
         int code = e.getKeyCode();
 
-        if (code == KeyEvent.VK_ESCAPE) {
-            pauseGame();
-            return;
-        }
+        if (code == KeyEvent.VK_ESCAPE) { pauseGame(); return; }
+        if (gameOver || paused) return;
 
-        if (gameOver || paused)
-            return;
-
-        if (code == KeyEvent.VK_SPACE) {
-            buildMode = !buildMode;
-            repaint();
-            return;
-        }
+        if (code == KeyEvent.VK_SPACE) { buildMode = !buildMode; repaint(); return; }
 
         if (buildMode) {
             switch (code) {
@@ -338,3 +323,4 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
     @Override
     public void keyTyped(KeyEvent e) {}
 }
+

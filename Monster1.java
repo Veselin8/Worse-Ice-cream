@@ -1,37 +1,24 @@
-import java.awt.Point;
+import java.awt.*;
 
-public class Monster1 extends MovingObject {
+public class Monster1 extends Monster {
 
     private int direction = 1; // 1 = down, -1 = up
 
     public Monster1(int x, int y) {
         super(x, y, "monster.png");
-        this.dx = 0;
-        this.dy = direction; // start moving down
+        setSpeed(2); // moves every 2 ticks
+        setDirection(0, direction);
     }
 
-    // Call this every tick
-    public void update(int gridHeight) {
+    @Override
+    protected void step(int gridWidth, int gridHeight) {
         Point next = new Point(pos.x, pos.y + direction);
 
-        // If the next cell is blocked or out of bounds, reverse direction
+        // reverse if out of bounds or blocked
         if (next.y < 0 || next.y >= gridHeight || BlockManager.isBlocked(next)) {
             direction *= -1;
-            next.y = pos.y + direction;
-
-            // Check again in case both sides are blocked
-            if (next.y < 0 || next.y >= gridHeight || BlockManager.isBlocked(next)) {
-                return;
-            }
+            setDirection(0, direction);
         }
-
-        pos = next;
-    }
-
-
-    // Override move to ignore blocks for vertical movement if you want
-    @Override
-    public void move(int gridWidth, int gridHeight) {
-        update(gridHeight);
     }
 }
+

@@ -6,24 +6,23 @@ public class CollisionManager {
     private List<Block> blocks;
     private CoinManager coinManager;
     private Player player;
-    private Monster1 monster;
+    private List<Monster> monsters;
 
-    public CollisionManager(Player player, Monster1 monster, List<Block> blocks, CoinManager coinManager) {
+    public CollisionManager(Player player, List<Monster> monsters, List<Block> blocks, CoinManager coinManager) {
         this.player = player;
-        this.monster = monster;
+        this.monsters = monsters;
         this.blocks = blocks;
         this.coinManager = coinManager;
     }
 
-    /** 
+    /**
      * Handles all collisions in a single call.
-     * Returns true if the game should end (player caught).
+     * Returns true if the game should end (player caught by any monster).
      */
     public boolean handleCollisions() {
         handleBlockCollision();
         coinManager.update(player);
 
-        // Return true if player and monster overlap
         return checkPlayerMonsterCollision();
     }
 
@@ -31,10 +30,8 @@ public class CollisionManager {
      * Prevents player from moving into a block.
      */
     private void handleBlockCollision() {
-        Point nextPos = new Point(
-            player.getPos().x + player.getDx(),
-            player.getPos().y + player.getDy()
-        );
+        Point nextPos = new Point(player.getPos().x + player.getDx(),
+                                  player.getPos().y + player.getDy());
 
         for (Block block : blocks) {
             if (block.getPos().equals(nextPos)) {
@@ -46,18 +43,27 @@ public class CollisionManager {
     }
 
     /**
-     * Checks if player and monster occupy the same grid cell.
+     * Checks if player and any monster occupy the same grid cell.
      */
     private boolean checkPlayerMonsterCollision() {
-        return player.getPos().equals(monster.getPos());
+        for (Monster monster : monsters) {
+            if (player.getPos().equals(monster.getPos())) {
+                return true; // player caught
+            }
+        }
+        return false;
     }
 
     /**
-     * Optional: check if the player is adjacent to a monster (for warning or proximity logic)
+     * Optional: checks if the player is adjacent to any monster (Manhattan distance = 1)
      */
     public boolean isPlayerNearMonster() {
-        int dx = Math.abs(player.getPos().x - monster.getPos().x);
-        int dy = Math.abs(player.getPos().y - monster.getPos().y);
-        return (dx + dy == 1); // Manhattan distance of 1 tile
+        for (Monster monster : monsters) {
+            int dx = Math.abs(player.getPos().x - monster.getPos().x);
+            int dy = Math.abs(player.getPos().y - monster.getPos().y);
+            if (dx + dy == 1) return true;
+        }
+        return false;
     }
 }
+
