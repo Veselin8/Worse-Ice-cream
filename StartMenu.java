@@ -6,7 +6,7 @@ import java.awt.event.ActionListener;
 public class StartMenu extends JPanel {
 
     public StartMenu(MyFrame frame) {
-        setPreferredSize(new Dimension(600, 650)); // Match your game window size
+        setPreferredSize(new Dimension(600, 630)); // Match your game window size
         setBackground(Color.BLACK);
         setLayout(new GridBagLayout());
 
