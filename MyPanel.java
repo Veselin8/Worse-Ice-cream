@@ -150,7 +150,19 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
         }
 
         // --- Handle collisions ---
-        if (collisionManager.handleCollisions()) {
+        // CHANGED: Now expects Monster object if caught, or null.
+        Monster caughtMonster = collisionManager.handleCollisions();
+        
+        if (caughtMonster != null) {
+            Point finalCollisionTile = collisionManager.getCollisionPoint();
+
+            // *** CRITICAL CHANGE: Force player and monster to the same tile ***
+            // This handles both standard collision and the "crossing paths" scenario
+            if (finalCollisionTile != null) {
+                player.setPosition(finalCollisionTile.x, finalCollisionTile.y);
+                caughtMonster.setPosition(finalCollisionTile.x, finalCollisionTile.y);
+            }
+
             gameOver = true;
             gameTimer.stop();
             countdownTimer.stop();
@@ -323,4 +335,3 @@ public class MyPanel extends JPanel implements ActionListener, KeyListener {
     @Override
     public void keyTyped(KeyEvent e) {}
 }
-
