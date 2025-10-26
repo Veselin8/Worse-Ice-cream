@@ -7,6 +7,9 @@ public class CollisionManager {
     private CoinManager coinManager;
     private Player player;
     private List<Monster> monsters;
+    
+    // NEW FIELD: Stores the tile where the collision occurred (null if no collision)
+    private Point collisionPoint = null; 
 
     public CollisionManager(Player player, List<Monster> monsters, List<Block> blocks, CoinManager coinManager) {
         this.player = player;
@@ -17,13 +20,18 @@ public class CollisionManager {
 
     /**
      * Handles all collisions in a single call.
-     * Returns true if the game should end (player caught by any monster).
+     * Returns the Monster if the player was caught, otherwise returns null.
      */
-    public boolean handleCollisions() {
+    public Monster handleCollisions() { // CHANGED RETURN TYPE: Now returns the colliding Monster
         handleBlockCollision();
         coinManager.update(player);
 
         return checkPlayerMonsterCollision();
+    }
+    
+    /** NEW: Getter for the collision tile, used by MyPanel to adjust drawing. */
+    public Point getCollisionPoint() {
+        return collisionPoint;
     }
 
     /**
@@ -31,7 +39,7 @@ public class CollisionManager {
      */
     private void handleBlockCollision() {
         Point nextPos = new Point(player.getPos().x + player.getDx(),
-                                  player.getPos().y + player.getDy());
+                                     player.getPos().y + player.getDy());
 
         for (Block block : blocks) {
             if (block.getPos().equals(nextPos)) {
@@ -43,15 +51,37 @@ public class CollisionManager {
     }
 
     /**
-     * Checks if player and any monster occupy the same grid cell.
+     * Checks if player and any monster occupy the same grid cell OR have swapped cells.
+     * Returns the colliding Monster object, or null if no collision.
      */
-    private boolean checkPlayerMonsterCollision() {
+    private Monster checkPlayerMonsterCollision() { // CHANGED RETURN TYPE: Monster
+        collisionPoint = null; // Reset collision point before check
+        
+        Point playerCurrentPos = player.getPos();
+        Point playerPreviousPos = player.getPreviousPos(); // From Modified MovingObject
+
         for (Monster monster : monsters) {
-            if (player.getPos().equals(monster.getPos())) {
-                return true; // player caught
+            Point monsterCurrentPos = monster.getPos();
+            Point monsterPreviousPos = monster.getPreviousPos(); // From Modified MovingObject
+
+            // 1. Standard Collision: Check if they are on the same tile now
+            if (playerCurrentPos.equals(monsterCurrentPos)) {
+                collisionPoint = playerCurrentPos; // Collision occurred at final tile
+                return monster;
+            }
+
+            // 2. Tunneling Collision: Check if they swapped positions (head-on collision)
+            // This is the case where they are now on two different tiles, but crossed.
+            if (playerCurrentPos.equals(monsterPreviousPos) &&
+                monsterCurrentPos.equals(playerPreviousPos)) {
+                
+                // Set the collision point to where the player ended up (Monster's original spot).
+                // This is the visually appealing tile for the "catch" animation.
+                collisionPoint = playerCurrentPos; 
+                return monster;
             }
         }
-        return false;
+        return null; // No collision occurred
     }
 
     /**
@@ -66,4 +96,3 @@ public class CollisionManager {
         return false;
     }
 }
-
